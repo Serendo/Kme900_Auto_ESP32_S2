@@ -43,7 +43,7 @@
 #define FANMOD false  // this will include a function to set the consoles fan ramp up temperature in °C \
                      // this will not work if the board is a esp32 and the usb control is disabled.
 
-
+#define USELED true  // this will enable LED_BUILTIN when the usb storage is enabled.
 
 
 //-------------------DEFAULT SETTINGS------------------//
@@ -611,6 +611,9 @@ void setup() {
   //HWSerial.begin(115200);
   //HWSerial.println("Version: " + firmwareVer);
   //USBSerial.begin();
+#if USELED
+  pinMode(LED_BUILTIN, OUTPUT);
+#endif
 
 #if USBCONTROL && defined(CONFIG_IDF_TARGET_ESP32)
   pinMode(usbPin, OUTPUT);
@@ -983,6 +986,9 @@ static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufs
 }
 
 void enableUSB() {
+#if USELED
+  digitalWrite(LED_BUILTIN, HIGH);
+#endif
   dev.vendorID("PS4");
   dev.productID("ESP32 Server");
   dev.productRevision("1.0");
@@ -995,6 +1001,9 @@ void enableUSB() {
 }
 
 void disableUSB() {
+#if USELED
+  digitalWrite(LED_BUILTIN, LOW);
+#endif
   enTime = 0;
   hasEnabled = false;
   dev.end();
