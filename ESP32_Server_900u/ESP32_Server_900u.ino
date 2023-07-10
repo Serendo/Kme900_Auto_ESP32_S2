@@ -1,8 +1,9 @@
 #include <FS.h>
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
+#include "ESPAsyncDNSServer.h"
 #include "esp_task_wdt.h"
-#include <DNSServer.h>
+// #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
 
@@ -116,7 +117,7 @@ int TIME2SLEEP = 30;  // minutes
 #include "fan.h"
 #endif
 
-DNSServer dnsServer;
+AsyncDNSServer dnsServer;
 AsyncWebServer server(WEB_PORT);
 boolean hasEnabled = false;
 boolean isFormating = false;
@@ -736,7 +737,7 @@ void setup() {
     WiFi.softAP(AP_SSID.c_str(), AP_PASS.c_str());
     //HWSerial.println("WIFI AP started");
     dnsServer.setTTL(30);
-    dnsServer.setErrorReplyCode(DNSReplyCode::ServerFailure);
+    dnsServer.setErrorReplyCode(AsyncDNSReplyCode::ServerFailure);
     dnsServer.start(53, "*", Server_IP);
     //HWSerial.println("DNS server started");
     //HWSerial.println("DNS Server IP: " + Server_IP.toString());
@@ -762,7 +763,7 @@ void setup() {
         MDNS.begin(mdnsHost.c_str());
         if (!startAP) {
           dnsServer.setTTL(30);
-          dnsServer.setErrorReplyCode(DNSReplyCode::ServerFailure);
+          dnsServer.setErrorReplyCode(AsyncDNSReplyCode::ServerFailure);
           dnsServer.start(53, "*", LAN_IP);
           //HWSerial.println("DNS server started");
           //HWSerial.println("DNS Server IP: " + LAN_IP.toString());
@@ -1039,5 +1040,5 @@ void loop() {
 #endif
   }
 #endif
-  dnsServer.processNextRequest();
+  // dnsServer.processNextRequest();
 }
