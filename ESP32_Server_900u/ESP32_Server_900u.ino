@@ -11,15 +11,6 @@
 #include "USBMSC.h"
 #include "exfathax.h"
 
-
-// use FatFS not SPIFFS [ true / false ]
-#define USEFAT false  // FatFS will be used instead of SPIFFS for the storage filesystem or for larger partitons on boards with more than 4mb flash. \
-                      // you must select a partition scheme labeled with "FAT" or "FATFS" with this enabled.
-
-// use LITTLEFS not SPIFFS [ true / false ]
-#define USELFS false  // LITTLEFS will be used instead of SPIFFS for the storage filesystem. \
-                      // you must select a partition scheme labeled with "SPIFFS" with this enabled and USEFAT must be false.
-
 // enable internal goldhen.h [ true / false ]
 #define INTHEN true  // goldhen is placed in the app partition to free up space on the storage for other payloads. \
                      // with this enabled you do not upload goldhen to the board, set this to false if you wish to upload goldhen.
@@ -35,7 +26,6 @@
 // enable usb drive indicator LED [ true / false ]
 #define USELED true  // this will enable LED_BUILTIN when the usb storage is enabled.
 
-#define USENVS true
 
 //-------------------DEFAULT SETTINGS------------------//
 
@@ -74,18 +64,8 @@ int TIME2SLEEP = 30;  // minutes
 #include "Pages.h"
 #include "jzip.h"
 
-#if USEFAT
-#include "FFat.h"
-#define FILESYS FFat
-#else
-#if USELFS
-#include <LittleFS.h>
-#define FILESYS LittleFS
-#else
 #include "SPIFFS.h"
 #define FILESYS SPIFFS
-#endif
-#endif
 
 #if INTHEN
 #include "goldhen.h"
@@ -104,19 +84,7 @@ int ftemp = 70;
 long bootTime = 0;
 File upFile;
 USBMSC dev;
-
-
-/*
-#if ARDUINO_USB_CDC_ON_BOOT
-#define HWSerial Serial0
-#define USBSerial Serial
-#else
-#define HWSerial Serial
-#if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
 USBCDC USBSerial;
-#endif
-#endif
-*/
 
 
 String split(String str, String from, String to) {
@@ -362,7 +330,6 @@ void handlePayloads(AsyncWebServerRequest *request) {
 
 void handleConfig(AsyncWebServerRequest *request) {
   if (request->hasParam("ap_ssid", true) && request->hasParam("ap_pass", true) && request->hasParam("web_ip", true) && request->hasParam("web_port", true) && request->hasParam("subnet", true) && request->hasParam("wifi_ssid", true) && request->hasParam("wifi_pass", true) && request->hasParam("wifi_host", true) && request->hasParam("usbwait", true)) {
-    #if USENVS
     NVS.setString("AP_SSID", request->getParam("ap_ssid", true)->value());
     NVS.setString("AP_PASS", request->getParam("ap_pass", true)->value().equals("********")?AP_PASS:request->getParam("ap_pass", true)->value());
     NVS.setString("WEBSERVER_IP", request->getParam("web_ip", true)->value());
@@ -376,34 +343,6 @@ void handleConfig(AsyncWebServerRequest *request) {
     NVS.setString("USBWAIT", request->getParam("usbwait", true)->value());
     NVS.setString("ESPSLEEP", request->hasParam("espsleep", true)?"true":"false");
     NVS.setString("SLEEPTIME",  request->getParam("sleeptime", true)->value());
-    #else
-      AP_SSID = request->getParam("ap_ssid", true)->value();
-    if (!request->getParam("ap_pass", true)->value().equals("********")) {
-      AP_PASS = request->getParam("ap_pass", true)->value();
-    }
-    WIFI_SSID = request->getParam("wifi_ssid", true)->value();
-    if (!request->getParam("wifi_pass", true)->value().equals("********")) {
-      WIFI_PASS = request->getParam("wifi_pass", true)->value();
-    }
-    String tmpip = request->getParam("web_ip", true)->value();
-    String tmpwport = request->getParam("web_port", true)->value();
-    String tmpsubn = request->getParam("subnet", true)->value();
-    String WIFI_HOSTNAME = request->getParam("wifi_host", true)->value();
-    String tmpua = "false";
-    String tmpcw = "false";
-    String tmpslp = "false";
-    if (request->hasParam("useap", true)) { tmpua = "true"; }
-    if (request->hasParam("usewifi", true)) { tmpcw = "true"; }
-    if (request->hasParam("espsleep", true)) { tmpslp = "true"; }
-    if (tmpua.equals("false") && tmpcw.equals("false")) { tmpua = "true"; }
-    int USB_WAIT = request->getParam("usbwait", true)->value().toInt();
-    int TIME2SLEEP = request->getParam("sleeptime", true)->value().toInt();
-    File iniFile = FILESYS.open("/config.ini", "w");
-    if (iniFile) {
-      iniFile.print("\r\nAP_SSID=" + AP_SSID + "\r\nAP_PASS=" + AP_PASS + "\r\nWEBSERVER_IP=" + tmpip + "\r\nWEBSERVER_PORT=" + tmpwport + "\r\nSUBNET_MASK=" + tmpsubn + "\r\nWIFI_SSID=" + WIFI_SSID + "\r\nWIFI_PASS=" + WIFI_PASS + "\r\nWIFI_HOST=" + WIFI_HOSTNAME + "\r\nUSEAP=" + tmpua + "\r\nCONWIFI=" + tmpcw + "\r\nUSBWAIT=" + USB_WAIT + "\r\nESPSLEEP=" + tmpslp + "\r\nSLEEPTIME=" + TIME2SLEEP + "\r\n");
-      iniFile.close();
-    }
-    #endif
     String htmStr = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"8; url=/info.html\"><style type=\"text/css\">#loader {z-index: 1;width: 50px;height: 50px;margin: 0 0 0 0;border: 6px solid #f3f3f3;border-radius: 50%;border-top: 6px solid #3498db;width: 50px;height: 50px;-webkit-animation: spin 2s linear infinite;animation: spin 2s linear infinite; } @-webkit-keyframes spin {0%{-webkit-transform: rotate(0deg);}100%{-webkit-transform: rotate(360deg);}}@keyframes spin{0%{ transform: rotate(0deg);}100%{transform: rotate(360deg);}}body {background-color: #1451AE; color: #ffffff; font-size: 20px; font-weight: bold; margin: 0 0 0 0.0; padding: 0.4em 0.4em 0.4em 0.6em;} #msgfmt {font-size: 16px; font-weight: normal;}#status {font-size: 16px; font-weight: normal;}</style></head><center><br><br><br><br><br><p id=\"status\"><div id='loader'></div><br>Config saved<br>Rebooting</p></center></html>";
     request->send(200, "text/html", htmStr);
     delay(1000);
@@ -543,13 +482,7 @@ void handleInfo(AsyncWebServerRequest *request) {
                                                                                           : "UNKNOWN"))
             + "<br><hr>";
   output += "###### Storage information ######<br><br>";
-#if USEFAT
-  output += "Filesystem: FatFs<br>";
-#elif USELFS
-  output += "Filesystem: LittleFS<br>";
-#else
   output += "Filesystem: SPIFFS<br>";
-#endif
   output += "Total Size: " + formatBytes(FILESYS.totalBytes()) + "<br>";
   output += "Used Space: " + formatBytes(FILESYS.usedBytes()) + "<br>";
   output += "Free Space: " + formatBytes(FILESYS.totalBytes() - FILESYS.usedBytes()) + "<br><hr>";
@@ -573,55 +506,37 @@ void handleInfo(AsyncWebServerRequest *request) {
   request->send(200, "text/html", output);
 }
 
-
-#if USENVS
 void writeNVS() {
-  bool ok;
-  ok = NVS.setString("stored", "true");
+  NVS.setString("stored", "true");
   String tmpua = "false";
   String tmpcw = "false";
   String tmpslp = "false";
   if (startAP) { tmpua = "true"; }
   if (connectWifi) { tmpcw = "true"; }
   if (espSleep) { tmpslp = "true"; }
-  ok = NVS.setString("AP_SSID", AP_SSID);
-  ok = NVS.setString("AP_PASS", AP_PASS);
-  ok = NVS.setString("WEBSERVER_IP", Server_IP.toString());
-  ok = NVS.setString("WEBSERVER_PORT", String(WEB_PORT));
-  ok = NVS.setString("SUBNET_MASK", Subnet_Mask.toString());
-  ok = NVS.setString("WIFI_SSID", WIFI_SSID);
-  ok = NVS.setString("WIFI_PASS", WIFI_PASS);
-  ok = NVS.setString("WIFI_HOST", WIFI_HOSTNAME);
-  ok = NVS.setString("USEAP", tmpua);
-  ok = NVS.setString("CONWIFI", tmpcw);
-  ok = NVS.setString("USBWAIT", String(USB_WAIT));
-  ok = NVS.setString("ESPSLEEP", tmpslp);
-  ok = NVS.setString("SLEEPTIME", String(TIME2SLEEP));
+  NVS.setString("AP_SSID", AP_SSID);
+  NVS.setString("AP_PASS", AP_PASS);
+  NVS.setString("WEBSERVER_IP", Server_IP.toString());
+  NVS.setString("WEBSERVER_PORT", String(WEB_PORT));
+  NVS.setString("SUBNET_MASK", Subnet_Mask.toString());
+  NVS.setString("WIFI_SSID", WIFI_SSID);
+  NVS.setString("WIFI_PASS", WIFI_PASS);
+  NVS.setString("WIFI_HOST", WIFI_HOSTNAME);
+  NVS.setString("USEAP", tmpua);
+  NVS.setString("CONWIFI", tmpcw);
+  NVS.setString("USBWAIT", String(USB_WAIT));
+  NVS.setString("ESPSLEEP", tmpslp);
+  NVS.setString("SLEEPTIME", String(TIME2SLEEP));
 }
-#else
-void writeConfig() {
-  File iniFile = FILESYS.open("/config.ini", "w");
-  if (iniFile) {
-    String tmpua = "false";
-    String tmpcw = "false";
-    String tmpslp = "false";
-    if (startAP) { tmpua = "true"; }
-    if (connectWifi) { tmpcw = "true"; }
-    if (espSleep) { tmpslp = "true"; }
-    iniFile.print("\r\nAP_SSID=" + AP_SSID + "\r\nAP_PASS=" + AP_PASS + "\r\nWEBSERVER_IP=" + Server_IP.toString() + "\r\nWEBSERVER_PORT=" + String(WEB_PORT) + "\r\nSUBNET_MASK=" + Subnet_Mask.toString() + "\r\nWIFI_SSID=" + WIFI_SSID + "\r\nWIFI_PASS=" + WIFI_PASS + "\r\nWIFI_HOST=" + WIFI_HOSTNAME + "\r\nUSEAP=" + tmpua + "\r\nCONWIFI=" + tmpcw + "\r\nUSBWAIT=" + USB_WAIT + "\r\nESPSLEEP=" + tmpslp + "\r\nSLEEPTIME=" + TIME2SLEEP + "\r\n");
-    iniFile.close();
-  }
-}
-#endif
 
 void setup() {
+  pinMode(0, INPUT_PULLUP);
   //HWSerial.begin(115200);
   //HWSerial.println("Version: " + firmwareVer);
   //USBSerial.begin();
 #if USELED
   pinMode(LED_BUILTIN, OUTPUT);
 #endif
-#if USENVS
   if (NVS.begin()) {
     if (NVS.getString("stored")!=""){
       if (NVS.getString("AP_SSID")!=""){
@@ -659,6 +574,7 @@ void setup() {
           connectWifi = true;
         } else {
           connectWifi = false;
+          startAP = true;
         }
       }
       if (NVS.getString("USBWAIT")!=""){
@@ -681,105 +597,7 @@ void setup() {
   } else {
     //HWSerial.println("Failed to load nvs");
   }
-#else
-  if (FILESYS.begin(true)) {
-    // get config from config.ini / nvs
-    if (FILESYS.exists("/config.ini")) {
-      File iniFile = FILESYS.open("/config.ini", "r");
-      if (iniFile) {
-        String iniData;
-        while (iniFile.available()) {
-          char chnk = iniFile.read();
-          iniData += chnk;
-        }
-        iniFile.close();
 
-        if (instr(iniData, "AP_SSID=")) {
-          AP_SSID = split(iniData, "AP_SSID=", "\r\n");
-          AP_SSID.trim();
-        }
-
-        if (instr(iniData, "AP_PASS=")) {
-          AP_PASS = split(iniData, "AP_PASS=", "\r\n");
-          AP_PASS.trim();
-        }
-
-        if (instr(iniData, "WEBSERVER_IP=")) {
-          String strwIp = split(iniData, "WEBSERVER_IP=", "\r\n");
-          strwIp.trim();
-          Server_IP.fromString(strwIp);
-        }
-
-        if (instr(iniData, "SUBNET_MASK=")) {
-          String strsIp = split(iniData, "SUBNET_MASK=", "\r\n");
-          strsIp.trim();
-          Subnet_Mask.fromString(strsIp);
-        }
-
-        if (instr(iniData, "WIFI_SSID=")) {
-          WIFI_SSID = split(iniData, "WIFI_SSID=", "\r\n");
-          WIFI_SSID.trim();
-        }
-
-        if (instr(iniData, "WIFI_PASS=")) {
-          WIFI_PASS = split(iniData, "WIFI_PASS=", "\r\n");
-          WIFI_PASS.trim();
-        }
-
-        if (instr(iniData, "WIFI_HOST=")) {
-          WIFI_HOSTNAME = split(iniData, "WIFI_HOST=", "\r\n");
-          WIFI_HOSTNAME.trim();
-        }
-
-        if (instr(iniData, "USEAP=")) {
-          String strua = split(iniData, "USEAP=", "\r\n");
-          strua.trim();
-          if (strua.equals("true")) {
-            startAP = true;
-          } else {
-            startAP = false;
-          }
-        }
-
-        if (instr(iniData, "CONWIFI=")) {
-          String strcw = split(iniData, "CONWIFI=", "\r\n");
-          strcw.trim();
-          if (strcw.equals("true")) {
-            connectWifi = true;
-          } else {
-            connectWifi = false;
-          }
-        }
-
-        if (instr(iniData, "USBWAIT=")) {
-          String strusw = split(iniData, "USBWAIT=", "\r\n");
-          strusw.trim();
-          USB_WAIT = strusw.toInt();
-        }
-
-        if (instr(iniData, "ESPSLEEP=")) {
-          String strsl = split(iniData, "ESPSLEEP=", "\r\n");
-          strsl.trim();
-          if (strsl.equals("true")) {
-            espSleep = true;
-          } else {
-            espSleep = false;
-          }
-        }
-
-        if (instr(iniData, "SLEEPTIME=")) {
-          String strslt = split(iniData, "SLEEPTIME=", "\r\n");
-          strslt.trim();
-          TIME2SLEEP = strslt.toInt();
-        }
-      }
-    } else {
-      writeConfig();
-    }
-  } else {
-    //HWSerial.println("Filesystem failed to mount");
-  }
-#endif
   
 
 
@@ -1067,6 +885,13 @@ void disableUSB() {
 
 
 void loop() {
+  if (digitalRead(0)==LOW) {
+    USBSerial.begin();
+    USB.begin();
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(500);
+    digitalWrite(LED_BUILTIN, LOW);
+  }
   if (espSleep && !isFormating) {
     if (millis() >= (bootTime + (TIME2SLEEP * 60000))) {
       //HWSerial.print("Esp sleep");
@@ -1085,11 +910,7 @@ void loop() {
     FILESYS.format();
     FILESYS.begin(true);
     delay(1000);
-    #if USENVS
     writeNVS();
-    #else
-    writeConfig();
-    #endif
   }
   // dnsServer.processNextRequest();
 }
