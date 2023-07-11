@@ -1,30 +1,19 @@
 #include <FS.h>
 #include "WiFi.h"
-#include "ESPAsyncWebServer.h"
-#include "ESPAsyncDNSServer.h"
+#include "ArduinoNvs.h" // try to us nvs to replace config.ini  https://github.com/rpolitex/ArduinoNvs
+#include "ESPAsyncWebSrv.h"
+
+#include "ESPAsyncDNSServer.h" //https://github.com/devyte/ESPAsyncDNSServer
 #include "esp_task_wdt.h"
-// #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <Update.h>
-
-#if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)  // ESP32-S2/S3 BOARDS(usb emulation)
 #include "USB.h"
 #include "USBMSC.h"
 #include "exfathax.h"
-#elif defined(CONFIG_IDF_TARGET_ESP32)  // ESP32 BOARDS
-#define USBCONTROL false                // set to true if you are using usb control(wired up usb drive)
-#define usbPin 4                        // set the pin you want to use for usb control
-#else
-#error "Selected board not supported"
-#endif
 
-
-// use SD Card [ true / false ]
-#define USESD false  // a FAT32 formatted SD Card will be used instead of the onboard flash for the storage. \
-                     // this requires a board with a sd card slot or a sd card connected.
 
 // use FatFS not SPIFFS [ true / false ]
-#define USEFAT true  // FatFS will be used instead of SPIFFS for the storage filesystem or for larger partitons on boards with more than 4mb flash. \
+#define USEFAT false  // FatFS will be used instead of SPIFFS for the storage filesystem or for larger partitons on boards with more than 4mb flash. \
                       // you must select a partition scheme labeled with "FAT" or "FATFS" with this enabled.
 
 // use LITTLEFS not SPIFFS [ true / false ]
@@ -32,7 +21,7 @@
                       // you must select a partition scheme labeled with "SPIFFS" with this enabled and USEFAT must be false.
 
 // enable internal goldhen.h [ true / false ]
-#define INTHEN false  // goldhen is placed in the app partition to free up space on the storage for other payloads. \
+#define INTHEN true  // goldhen is placed in the app partition to free up space on the storage for other payloads. \
                      // with this enabled you do not upload goldhen to the board, set this to false if you wish to upload goldhen.
 
 // enable autohen [ true / false ]
@@ -40,21 +29,20 @@
                        // you can update goldhen by uploading the goldhen payload to the board storage with the filename "goldhen.bin".
 
 // enable fan threshold [ true / false ]
-#define FANMOD false  // this will include a function to set the consoles fan ramp up temperature in °C \
+#define FANMOD true  // this will include a function to set the consoles fan ramp up temperature in °C \
                      // this will not work if the board is a esp32 and the usb control is disabled.
 
+// enable usb drive indicator LED [ true / false ]
 #define USELED true  // this will enable LED_BUILTIN when the usb storage is enabled.
 
+#define USENVS true
 
 //-------------------DEFAULT SETTINGS------------------//
 
-// use config.ini [ true / false ]
-#define USECONFIG true  // this will allow you to change these settings below via the admin webpage. \
-                        // if you want to permanently use the values below then set this to false.
 
 //create access point
 boolean startAP = true;
-String AP_SSID = "Kme900_Auto_ESP32S2";
+String AP_SSID = "PS4ESP32";
 String AP_PASS = "123456789";
 IPAddress Server_IP(10, 1, 1, 1);
 IPAddress Subnet_Mask(255, 255, 255, 0);
@@ -86,15 +74,6 @@ int TIME2SLEEP = 30;  // minutes
 #include "Pages.h"
 #include "jzip.h"
 
-#if USESD
-#include "SD.h"
-#include "SPI.h"
-#define SCK 12   // pins for sd card
-#define MISO 13  // these values are set for the LILYGO TTGO T8 ESP32-S2 board
-#define MOSI 11  // you may need to change these for other boards
-#define SS 10
-#define FILESYS SD
-#else
 #if USEFAT
 #include "FFat.h"
 #define FILESYS FFat
@@ -107,13 +86,12 @@ int TIME2SLEEP = 30;  // minutes
 #define FILESYS SPIFFS
 #endif
 #endif
-#endif
 
 #if INTHEN
 #include "goldhen.h"
 #endif
 
-#if (!defined(USBCONTROL) | USBCONTROL) && FANMOD
+#if FANMOD
 #include "fan.h"
 #endif
 
@@ -125,9 +103,7 @@ long enTime = 0;
 int ftemp = 70;
 long bootTime = 0;
 File upFile;
-#if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
 USBMSC dev;
-#endif
 
 
 /*
@@ -371,7 +347,7 @@ void handlePayloads(AsyncWebServerRequest *request) {
     esp_task_wdt_reset();
   }
 
-#if (!defined(USBCONTROL) | USBCONTROL) && FANMOD
+#if FANMOD
   payloadCount++;
   output += "<br><p><a onclick='setfantemp()'><button class='btn'>Set Fan Threshold</button></a><select id='temp' class='slct'></select></p><script>function setfantemp(){var e = document.getElementById('temp');var temp = e.value;var xhr = new XMLHttpRequest();xhr.open('POST', 'setftemp', true);xhr.onload = function(e) {if (this.status == 200) {sessionStorage.setItem('payload', 'fant.bin'); sessionStorage.setItem('title', 'Fan Temp ' + temp + ' &deg;C'); localStorage.setItem('temp', temp); sessionStorage.setItem('waittime', '10000');  window.open('loader.html', '_self');}};xhr.send('temp=' + temp);}var stmp = localStorage.getItem('temp');if (!stmp){stmp = 70;}for(var i=55; i<=85; i=i+5){var s = document.getElementById('temp');var o = document.createElement('option');s.options.add(o);o.text = i + String.fromCharCode(32,176,67);o.value = i;if (i == stmp){o.selected = true;}}</script>";
 #endif
@@ -384,10 +360,24 @@ void handlePayloads(AsyncWebServerRequest *request) {
 }
 
 
-#if USECONFIG
 void handleConfig(AsyncWebServerRequest *request) {
   if (request->hasParam("ap_ssid", true) && request->hasParam("ap_pass", true) && request->hasParam("web_ip", true) && request->hasParam("web_port", true) && request->hasParam("subnet", true) && request->hasParam("wifi_ssid", true) && request->hasParam("wifi_pass", true) && request->hasParam("wifi_host", true) && request->hasParam("usbwait", true)) {
-    AP_SSID = request->getParam("ap_ssid", true)->value();
+    #if USENVS
+    NVS.setString("AP_SSID", request->getParam("ap_ssid", true)->value());
+    NVS.setString("AP_PASS", request->getParam("ap_pass", true)->value().equals("********")?AP_PASS:request->getParam("ap_pass", true)->value());
+    NVS.setString("WEBSERVER_IP", request->getParam("web_ip", true)->value());
+    NVS.setString("WEBSERVER_PORT", request->getParam("web_port", true)->value());
+    NVS.setString("SUBNET_MASK", request->getParam("subnet", true)->value());
+    NVS.setString("WIFI_SSID",  request->getParam("wifi_ssid", true)->value());
+    NVS.setString("WIFI_PASS", request->getParam("wifi_pass", true)->value().equals("********")?WIFI_PASS:request->getParam("wifi_pass", true)->value());
+    NVS.setString("WIFI_HOST", request->getParam("wifi_host", true)->value());
+    NVS.setString("USEAP", request->hasParam("useap", true)?"true":"false");
+    NVS.setString("CONWIFI", request->hasParam("usewifi", true)?"true":"false");
+    NVS.setString("USBWAIT", request->getParam("usbwait", true)->value());
+    NVS.setString("ESPSLEEP", request->hasParam("espsleep", true)?"true":"false");
+    NVS.setString("SLEEPTIME",  request->getParam("sleeptime", true)->value());
+    #else
+      AP_SSID = request->getParam("ap_ssid", true)->value();
     if (!request->getParam("ap_pass", true)->value().equals("********")) {
       AP_PASS = request->getParam("ap_pass", true)->value();
     }
@@ -413,6 +403,7 @@ void handleConfig(AsyncWebServerRequest *request) {
       iniFile.print("\r\nAP_SSID=" + AP_SSID + "\r\nAP_PASS=" + AP_PASS + "\r\nWEBSERVER_IP=" + tmpip + "\r\nWEBSERVER_PORT=" + tmpwport + "\r\nSUBNET_MASK=" + tmpsubn + "\r\nWIFI_SSID=" + WIFI_SSID + "\r\nWIFI_PASS=" + WIFI_PASS + "\r\nWIFI_HOST=" + WIFI_HOSTNAME + "\r\nUSEAP=" + tmpua + "\r\nCONWIFI=" + tmpcw + "\r\nUSBWAIT=" + USB_WAIT + "\r\nESPSLEEP=" + tmpslp + "\r\nSLEEPTIME=" + TIME2SLEEP + "\r\n");
       iniFile.close();
     }
+    #endif
     String htmStr = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"8; url=/info.html\"><style type=\"text/css\">#loader {z-index: 1;width: 50px;height: 50px;margin: 0 0 0 0;border: 6px solid #f3f3f3;border-radius: 50%;border-top: 6px solid #3498db;width: 50px;height: 50px;-webkit-animation: spin 2s linear infinite;animation: spin 2s linear infinite; } @-webkit-keyframes spin {0%{-webkit-transform: rotate(0deg);}100%{-webkit-transform: rotate(360deg);}}@keyframes spin{0%{ transform: rotate(0deg);}100%{transform: rotate(360deg);}}body {background-color: #1451AE; color: #ffffff; font-size: 20px; font-weight: bold; margin: 0 0 0 0.0; padding: 0.4em 0.4em 0.4em 0.6em;} #msgfmt {font-size: 16px; font-weight: normal;}#status {font-size: 16px; font-weight: normal;}</style></head><center><br><br><br><br><br><p id=\"status\"><div id='loader'></div><br>Config saved<br>Rebooting</p></center></html>";
     request->send(200, "text/html", htmStr);
     delay(1000);
@@ -421,7 +412,7 @@ void handleConfig(AsyncWebServerRequest *request) {
     request->redirect("/config.html");
   }
 }
-#endif
+
 
 
 void handleReboot(AsyncWebServerRequest *request) {
@@ -434,7 +425,7 @@ void handleReboot(AsyncWebServerRequest *request) {
 }
 
 
-#if USECONFIG
+
 void handleConfigHtml(AsyncWebServerRequest *request) {
   String tmpUa = "";
   String tmpCw = "";
@@ -446,7 +437,6 @@ void handleConfigHtml(AsyncWebServerRequest *request) {
   String htmStr = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Config Editor</title><style type=\"text/css\">body {background-color: #1451AE; color: #ffffff; font-size: 14px;font-weight: bold;margin: 0 0 0 0.0;padding: 0.4em 0.4em 0.4em 0.6em;}input[type=\"submit\"]:hover {background: #ffffff;color: green;}input[type=\"submit\"]:active{outline-color: green;color: green;background: #ffffff; }table {font-family: arial, sans-serif;border-collapse: collapse;}td {border: 1px solid #dddddd;text-align: left;padding: 8px;}th {border: 1px solid #dddddd; background-color:gray;text-align: center;padding: 8px;}</style></head><body><form action=\"/config.html\" method=\"post\"><center><table><tr><th colspan=\"2\"><center>Access Point</center></th></tr><tr><td>AP SSID:</td><td><input name=\"ap_ssid\" value=\"" + AP_SSID + "\"></td></tr><tr><td>AP PASSWORD:</td><td><input name=\"ap_pass\" value=\"********\"></td></tr><tr><td>AP IP:</td><td><input name=\"web_ip\" value=\"" + Server_IP.toString() + "\"></td></tr><tr><td>SUBNET MASK:</td><td><input name=\"subnet\" value=\"" + Subnet_Mask.toString() + "\"></td></tr><tr><td>START AP:</td><td><input type=\"checkbox\" name=\"useap\" " + tmpUa + "></td></tr><tr><th colspan=\"2\"><center>Web Server</center></th></tr><tr><td>WEBSERVER PORT:</td><td><input name=\"web_port\" value=\"" + String(WEB_PORT) + "\"></td></tr><tr><th colspan=\"2\"><center>Wifi Connection</center></th></tr><tr><td>WIFI SSID:</td><td><input name=\"wifi_ssid\" value=\"" + WIFI_SSID + "\"></td></tr><tr><td>WIFI PASSWORD:</td><td><input name=\"wifi_pass\" value=\"********\"></td></tr><tr><td>WIFI HOSTNAME:</td><td><input name=\"wifi_host\" value=\"" + WIFI_HOSTNAME + "\"></td></tr><tr><td>CONNECT WIFI:</td><td><input type=\"checkbox\" name=\"usewifi\" " + tmpCw + "></td></tr><tr><th colspan=\"2\"><center>Auto USB Wait</center></th></tr><tr><td>WAIT TIME(ms):</td><td><input name=\"usbwait\" value=\"" + USB_WAIT + "\"></td></tr><tr><th colspan=\"2\"><center>ESP Sleep Mode</center></th></tr><tr><td>ENABLE SLEEP:</td><td><input type=\"checkbox\" name=\"espsleep\" " + tmpSlp + "></td></tr><tr><td>TIME TO SLEEP(minutes):</td><td><input name=\"sleeptime\" value=\"" + TIME2SLEEP + "\"></td></tr></table><br><input id=\"savecfg\" type=\"submit\" value=\"Save Config\"></center></form></body></html>";
   request->send(200, "text/html", htmStr);
 }
-#endif
 
 
 void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
@@ -483,9 +473,8 @@ void handleConsoleUpdate(String rgn, AsyncWebServerRequest *request) {
   request->send(200, "text/xml", xmlStr);
 }
 
-#if !USBCONTROL && defined(CONFIG_IDF_TARGET_ESP32)
+
 void handleCacheManifest(AsyncWebServerRequest *request) {
-#if !USBCONTROL
   String output = "CACHE MANIFEST\r\n";
   File dir = FILESYS.open("/");
   while (dir) {
@@ -524,11 +513,8 @@ void handleCacheManifest(AsyncWebServerRequest *request) {
   }
 #endif
   request->send(200, "text/cache-manifest", output);
-#else
-  request->send(404);
-#endif
 }
-#endif
+
 
 void handleInfo(AsyncWebServerRequest *request) {
   float flashFreq = (float)ESP.getFlashChipSpeed() / 1000.0 / 1000.0;
@@ -557,9 +543,7 @@ void handleInfo(AsyncWebServerRequest *request) {
                                                                                           : "UNKNOWN"))
             + "<br><hr>";
   output += "###### Storage information ######<br><br>";
-#if USESD
-  output += "Storage Device: SD<br>";
-#elif USEFAT
+#if USEFAT
   output += "Filesystem: FatFs<br>";
 #elif USELFS
   output += "Filesystem: LittleFS<br>";
@@ -590,7 +574,31 @@ void handleInfo(AsyncWebServerRequest *request) {
 }
 
 
-#if USECONFIG
+#if USENVS
+void writeNVS() {
+  bool ok;
+  ok = NVS.setString("stored", "true");
+  String tmpua = "false";
+  String tmpcw = "false";
+  String tmpslp = "false";
+  if (startAP) { tmpua = "true"; }
+  if (connectWifi) { tmpcw = "true"; }
+  if (espSleep) { tmpslp = "true"; }
+  ok = NVS.setString("AP_SSID", AP_SSID);
+  ok = NVS.setString("AP_PASS", AP_PASS);
+  ok = NVS.setString("WEBSERVER_IP", Server_IP.toString());
+  ok = NVS.setString("WEBSERVER_PORT", String(WEB_PORT));
+  ok = NVS.setString("SUBNET_MASK", Subnet_Mask.toString());
+  ok = NVS.setString("WIFI_SSID", WIFI_SSID);
+  ok = NVS.setString("WIFI_PASS", WIFI_PASS);
+  ok = NVS.setString("WIFI_HOST", WIFI_HOSTNAME);
+  ok = NVS.setString("USEAP", tmpua);
+  ok = NVS.setString("CONWIFI", tmpcw);
+  ok = NVS.setString("USBWAIT", String(USB_WAIT));
+  ok = NVS.setString("ESPSLEEP", tmpslp);
+  ok = NVS.setString("SLEEPTIME", String(TIME2SLEEP));
+}
+#else
 void writeConfig() {
   File iniFile = FILESYS.open("/config.ini", "w");
   if (iniFile) {
@@ -606,7 +614,6 @@ void writeConfig() {
 }
 #endif
 
-
 void setup() {
   //HWSerial.begin(115200);
   //HWSerial.println("Version: " + firmwareVer);
@@ -614,23 +621,69 @@ void setup() {
 #if USELED
   pinMode(LED_BUILTIN, OUTPUT);
 #endif
-
-#if USBCONTROL && defined(CONFIG_IDF_TARGET_ESP32)
-  pinMode(usbPin, OUTPUT);
-  digitalWrite(usbPin, LOW);
-#endif
-
-
-
-
-#if USESD
-  SPI.begin(SCK, MISO, MOSI, SS);
-  if (FILESYS.begin(SS, SPI)) {
+#if USENVS
+  if (NVS.begin()) {
+    if (NVS.getString("stored")!=""){
+      if (NVS.getString("AP_SSID")!=""){
+        AP_SSID = NVS.getString("AP_SSID");
+      }
+      if (NVS.getString("AP_PASS")!=""){
+        AP_PASS = NVS.getString("AP_PASS");
+      }
+      if (NVS.getString("WEBSERVER_IP")!=""){
+        Server_IP.fromString(NVS.getString("WEBSERVER_IP"));
+      }
+      if (NVS.getString("SUBNET_MASK")!=""){
+        Subnet_Mask.fromString(NVS.getString("SUBNET_MASK"));
+      }
+      if (NVS.getString("WIFI_SSID")!=""){
+        WIFI_SSID = NVS.getString("WIFI_SSID");
+      }
+      if (NVS.getString("WIFI_PASS")!=""){
+        WIFI_PASS = NVS.getString("WIFI_PASS");
+      }
+      if (NVS.getString("WIFI_HOST")!=""){
+        WIFI_HOSTNAME = NVS.getString("WIFI_HOST");
+      }
+      if (NVS.getString("USEAP")!=""){
+        String strua = NVS.getString("USEAP");
+        if (strua.equals("true")) {
+          startAP = true;
+        } else {
+          startAP = false;
+        }
+      }
+      if (NVS.getString("CONWIFI")!=""){
+        String strcw = NVS.getString("CONWIFI");
+        if (strcw.equals("true")) {
+          connectWifi = true;
+        } else {
+          connectWifi = false;
+        }
+      }
+      if (NVS.getString("USBWAIT")!=""){
+        USB_WAIT = NVS.getString("USBWAIT").toInt();
+      }
+      if (NVS.getString("ESPSLEEP")!=""){
+        String strsl = NVS.getString("ESPSLEEP");
+        if (strsl.equals("true")) {
+          espSleep = true;
+        } else {
+          espSleep = false;
+        }
+      }
+      if (NVS.getString("SLEEPTIME")!=""){
+        TIME2SLEEP = NVS.getString("SLEEPTIME").toInt();
+      }
+    } else {
+      writeNVS();
+    }
+  } else {
+    //HWSerial.println("Failed to load nvs");
+  }
 #else
   if (FILESYS.begin(true)) {
-#endif
-
-#if USECONFIG
+    // get config from config.ini / nvs
     if (FILESYS.exists("/config.ini")) {
       File iniFile = FILESYS.open("/config.ini", "r");
       if (iniFile) {
@@ -723,10 +776,12 @@ void setup() {
     } else {
       writeConfig();
     }
-#endif
   } else {
     //HWSerial.println("Filesystem failed to mount");
   }
+#endif
+  
+
 
   if (startAP) {
     //HWSerial.println("SSID: " + AP_SSID);
@@ -779,17 +834,14 @@ void setup() {
   server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Microsoft Connect Test");
   });
-#if !USBCONTROL && defined(CONFIG_IDF_TARGET_ESP32)
+
   server.on("/cache.manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
     handleCacheManifest(request);
   });
-#endif
 
-#if USECONFIG
   server.on("/config.ini", HTTP_ANY, [](AsyncWebServerRequest *request) {
     request->send(404);
   });
-#endif
 
   server.on("/upload.html", HTTP_GET, [](AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", upload_gz, sizeof(upload_gz));
@@ -811,7 +863,6 @@ void setup() {
     handleDelete(request);
   });
 
-#if USECONFIG
   server.on("/config.html", HTTP_GET, [](AsyncWebServerRequest *request) {
     handleConfigHtml(request);
   });
@@ -819,7 +870,6 @@ void setup() {
   server.on("/config.html", HTTP_POST, [](AsyncWebServerRequest *request) {
     handleConfig(request);
   });
-#endif
 
   server.on("/admin.html", HTTP_GET, [](AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", admin_gz, sizeof(admin_gz));
@@ -883,7 +933,7 @@ void setup() {
     request->send(response);
   });
 
-#if (!defined(USBCONTROL) | USBCONTROL) && FANMOD
+#if FANMOD
   server.on("/setftemp", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (request->hasParam("temp", true)) {
       ftemp = request->getParam("temp", true)->value().toInt();
@@ -931,14 +981,6 @@ void setup() {
       request->send(response);
       return;
     }
-#if !USBCONTROL && defined(CONFIG_IDF_TARGET_ESP32)
-    if (path.endsWith("menu.html")) {
-      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", menu_gz, sizeof(menu_gz));
-      response->addHeader("Content-Encoding", "gzip");
-      request->send(response);
-      return;
-    }
-#endif
     if (path.endsWith("payloads.html")) {
 #if AUTOHEN
       AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", autohen_gz, sizeof(autohen_gz));
@@ -1036,7 +1078,6 @@ void loop() {
   if (hasEnabled && millis() >= (enTime + 15000)) {
     disableUSB();
   }
-#if !USESD
   if (isFormating) {
     //HWSerial.print("Formatting Storage");
     isFormating = false;
@@ -1044,10 +1085,11 @@ void loop() {
     FILESYS.format();
     FILESYS.begin(true);
     delay(1000);
-#if USECONFIG
+    #if USENVS
+    writeNVS();
+    #else
     writeConfig();
-#endif
+    #endif
   }
-#endif
   // dnsServer.processNextRequest();
 }
