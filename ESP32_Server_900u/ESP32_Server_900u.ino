@@ -1,9 +1,9 @@
 #include <FS.h>
 #include "WiFi.h"
-#include "ArduinoNvs.h" // try to us nvs to replace config.ini  https://github.com/rpolitex/ArduinoNvs
+#include "ArduinoNvs.h"  // try to us nvs to replace config.ini  https://github.com/rpolitex/ArduinoNvs
 #include "ESPAsyncWebSrv.h"
-
-#include "ESPAsyncDNSServer.h" //https://github.com/devyte/ESPAsyncDNSServer
+#include <Ticker.h>
+#include "ESPAsyncDNSServer.h"  //https://github.com/devyte/ESPAsyncDNSServer
 #include "esp_task_wdt.h"
 #include <ESPmDNS.h>
 #include <Update.h>
@@ -331,18 +331,18 @@ void handlePayloads(AsyncWebServerRequest *request) {
 void handleConfig(AsyncWebServerRequest *request) {
   if (request->hasParam("ap_ssid", true) && request->hasParam("ap_pass", true) && request->hasParam("web_ip", true) && request->hasParam("web_port", true) && request->hasParam("subnet", true) && request->hasParam("wifi_ssid", true) && request->hasParam("wifi_pass", true) && request->hasParam("wifi_host", true) && request->hasParam("usbwait", true)) {
     NVS.setString("AP_SSID", request->getParam("ap_ssid", true)->value());
-    NVS.setString("AP_PASS", request->getParam("ap_pass", true)->value().equals("********")?AP_PASS:request->getParam("ap_pass", true)->value());
+    NVS.setString("AP_PASS", request->getParam("ap_pass", true)->value().equals("********") ? AP_PASS : request->getParam("ap_pass", true)->value());
     NVS.setString("WEBSERVER_IP", request->getParam("web_ip", true)->value());
     NVS.setString("WEBSERVER_PORT", request->getParam("web_port", true)->value());
     NVS.setString("SUBNET_MASK", request->getParam("subnet", true)->value());
-    NVS.setString("WIFI_SSID",  request->getParam("wifi_ssid", true)->value());
-    NVS.setString("WIFI_PASS", request->getParam("wifi_pass", true)->value().equals("********")?WIFI_PASS:request->getParam("wifi_pass", true)->value());
+    NVS.setString("WIFI_SSID", request->getParam("wifi_ssid", true)->value());
+    NVS.setString("WIFI_PASS", request->getParam("wifi_pass", true)->value().equals("********") ? WIFI_PASS : request->getParam("wifi_pass", true)->value());
     NVS.setString("WIFI_HOST", request->getParam("wifi_host", true)->value());
-    NVS.setString("USEAP", request->hasParam("useap", true)?"true":"false");
-    NVS.setString("CONWIFI", request->hasParam("usewifi", true)?"true":"false");
+    NVS.setString("USEAP", request->hasParam("useap", true) ? "true" : "false");
+    NVS.setString("CONWIFI", request->hasParam("usewifi", true) ? "true" : "false");
     NVS.setString("USBWAIT", request->getParam("usbwait", true)->value());
-    NVS.setString("ESPSLEEP", request->hasParam("espsleep", true)?"true":"false");
-    NVS.setString("SLEEPTIME",  request->getParam("sleeptime", true)->value());
+    NVS.setString("ESPSLEEP", request->hasParam("espsleep", true) ? "true" : "false");
+    NVS.setString("SLEEPTIME", request->getParam("sleeptime", true)->value());
     String htmStr = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"8; url=/info.html\"><style type=\"text/css\">#loader {z-index: 1;width: 50px;height: 50px;margin: 0 0 0 0;border: 6px solid #f3f3f3;border-radius: 50%;border-top: 6px solid #3498db;width: 50px;height: 50px;-webkit-animation: spin 2s linear infinite;animation: spin 2s linear infinite; } @-webkit-keyframes spin {0%{-webkit-transform: rotate(0deg);}100%{-webkit-transform: rotate(360deg);}}@keyframes spin{0%{ transform: rotate(0deg);}100%{transform: rotate(360deg);}}body {background-color: #1451AE; color: #ffffff; font-size: 20px; font-weight: bold; margin: 0 0 0 0.0; padding: 0.4em 0.4em 0.4em 0.6em;} #msgfmt {font-size: 16px; font-weight: normal;}#status {font-size: 16px; font-weight: normal;}</style></head><center><br><br><br><br><br><p id=\"status\"><div id='loader'></div><br>Config saved<br>Rebooting</p></center></html>";
     request->send(200, "text/html", htmStr);
     delay(1000);
@@ -529,38 +529,67 @@ void writeNVS() {
   NVS.setString("SLEEPTIME", String(TIME2SLEEP));
 }
 
+#if USELED
+Ticker led_ticker; // control when to stop blinking
+Ticker led_blinker; // control blinking pattern
+
+void stopBlink() {
+  led_ticker.detach();
+  led_blinker.detach();
+  digitalWrite(LED_BUILTIN, LOW);
+}
+void blink() {
+  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+}
+#endif
+
+/* use button 0 to start CDC */
+void ARDUINO_ISR_ATTR start_cdc() {
+  if (digitalRead(0) == LOW) {
+    USBSerial.begin();
+    USB.begin();
+    #if USELED
+      led_ticker.attach(2, stopBlink);
+      led_blinker.attach_ms(200, blink);
+    #endif
+    detachInterrupt(digitalPinToInterrupt(0));
+  }
+}
+
 void setup() {
+  #if USELED
+    pinMode(LED_BUILTIN, OUTPUT);
+  #endif
   pinMode(0, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(0), start_cdc, FALLING);
   //HWSerial.begin(115200);
   //HWSerial.println("Version: " + firmwareVer);
   //USBSerial.begin();
-#if USELED
-  pinMode(LED_BUILTIN, OUTPUT);
-#endif
+  FILESYS.begin(true);
   if (NVS.begin()) {
-    if (NVS.getString("stored")!=""){
-      if (NVS.getString("AP_SSID")!=""){
+    if (NVS.getString("stored") != "") {
+      if (NVS.getString("AP_SSID") != "") {
         AP_SSID = NVS.getString("AP_SSID");
       }
-      if (NVS.getString("AP_PASS")!=""){
+      if (NVS.getString("AP_PASS") != "") {
         AP_PASS = NVS.getString("AP_PASS");
       }
-      if (NVS.getString("WEBSERVER_IP")!=""){
+      if (NVS.getString("WEBSERVER_IP") != "") {
         Server_IP.fromString(NVS.getString("WEBSERVER_IP"));
       }
-      if (NVS.getString("SUBNET_MASK")!=""){
+      if (NVS.getString("SUBNET_MASK") != "") {
         Subnet_Mask.fromString(NVS.getString("SUBNET_MASK"));
       }
-      if (NVS.getString("WIFI_SSID")!=""){
+      if (NVS.getString("WIFI_SSID") != "") {
         WIFI_SSID = NVS.getString("WIFI_SSID");
       }
-      if (NVS.getString("WIFI_PASS")!=""){
+      if (NVS.getString("WIFI_PASS") != "") {
         WIFI_PASS = NVS.getString("WIFI_PASS");
       }
-      if (NVS.getString("WIFI_HOST")!=""){
+      if (NVS.getString("WIFI_HOST") != "") {
         WIFI_HOSTNAME = NVS.getString("WIFI_HOST");
       }
-      if (NVS.getString("USEAP")!=""){
+      if (NVS.getString("USEAP") != "") {
         String strua = NVS.getString("USEAP");
         if (strua.equals("true")) {
           startAP = true;
@@ -568,7 +597,7 @@ void setup() {
           startAP = false;
         }
       }
-      if (NVS.getString("CONWIFI")!=""){
+      if (NVS.getString("CONWIFI") != "") {
         String strcw = NVS.getString("CONWIFI");
         if (strcw.equals("true")) {
           connectWifi = true;
@@ -577,10 +606,10 @@ void setup() {
           startAP = true;
         }
       }
-      if (NVS.getString("USBWAIT")!=""){
+      if (NVS.getString("USBWAIT") != "") {
         USB_WAIT = NVS.getString("USBWAIT").toInt();
       }
-      if (NVS.getString("ESPSLEEP")!=""){
+      if (NVS.getString("ESPSLEEP") != "") {
         String strsl = NVS.getString("ESPSLEEP");
         if (strsl.equals("true")) {
           espSleep = true;
@@ -588,7 +617,7 @@ void setup() {
           espSleep = false;
         }
       }
-      if (NVS.getString("SLEEPTIME")!=""){
+      if (NVS.getString("SLEEPTIME") != "") {
         TIME2SLEEP = NVS.getString("SLEEPTIME").toInt();
       }
     } else {
@@ -597,8 +626,6 @@ void setup() {
   } else {
     //HWSerial.println("Failed to load nvs");
   }
-
-  
 
 
   if (startAP) {
@@ -838,7 +865,6 @@ void setup() {
 }
 
 
-#if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
 static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufsize) {
   if (lba > 4) { lba = 4; }
   memcpy(buffer, exfathax[lba] + offset, bufsize);
@@ -869,29 +895,9 @@ void disableUSB() {
   dev.end();
   ESP.restart();
 }
-#else
-void enableUSB() {
-  digitalWrite(usbPin, HIGH);
-  enTime = millis();
-  hasEnabled = true;
-}
-
-void disableUSB() {
-  enTime = 0;
-  hasEnabled = false;
-  digitalWrite(usbPin, LOW);
-}
-#endif
 
 
 void loop() {
-  if (digitalRead(0)==LOW) {
-    USBSerial.begin();
-    USB.begin();
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(500);
-    digitalWrite(LED_BUILTIN, LOW);
-  }
   if (espSleep && !isFormating) {
     if (millis() >= (bootTime + (TIME2SLEEP * 60000))) {
       //HWSerial.print("Esp sleep");
