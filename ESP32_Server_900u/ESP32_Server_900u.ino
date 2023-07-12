@@ -98,7 +98,6 @@ String split(String str, String from, String to) {
   return retval;
 }
 
-
 bool instr(String str, String search) {
   int result = str.indexOf(search);
   if (result == -1) {
@@ -106,7 +105,6 @@ bool instr(String str, String search) {
   }
   return true;
 }
-
 
 String formatBytes(size_t bytes) {
   if (bytes < 1024) {
@@ -119,7 +117,6 @@ String formatBytes(size_t bytes) {
     return String(bytes / 1024.0 / 1024.0 / 1024.0) + " GB";
   }
 }
-
 
 String urlencode(String str) {
   String encodedString = "";
@@ -153,7 +150,6 @@ String urlencode(String str) {
   encodedString.replace("%2E", ".");
   return encodedString;
 }
-
 
 void sendwebmsg(AsyncWebServerRequest *request, String htmMsg) {
   String tmphtm = "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"style.css\"></head><center><br><br><br><br><br><br>" + htmMsg + "</center></html>";
@@ -217,8 +213,6 @@ void handleDelete(AsyncWebServerRequest *request) {
   request->redirect("/fileman.html");
 }
 
-
-
 void handleFileMan(AsyncWebServerRequest *request) {
   File dir = FILESYS.open("/");
   String output = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>File Manager</title><link rel=\"stylesheet\" href=\"style.css\"><style>body{overflow-y:auto;} th{border: 1px solid #dddddd; background-color:gray;padding: 8px;}</style><script>function statusDel(fname) {var answer = confirm(\"Are you sure you want to delete \" + fname + \" ?\");if (answer) {return true;} else { return false; }} </script></head><body><br><table id=filetable></table><script>var filelist = [";
@@ -246,7 +240,6 @@ void handleFileMan(AsyncWebServerRequest *request) {
   }
   request->send(200, "text/html", output);
 }
-
 
 void handleDlFiles(AsyncWebServerRequest *request) {
   File dir = FILESYS.open("/");
@@ -284,11 +277,11 @@ void handlePayloads(AsyncWebServerRequest *request) {
   if (USB_WAIT < 5000) { USB_WAIT = 5000; }  // correct unrealistic timing values
   if (USB_WAIT > 25000) { USB_WAIT = 25000; }
 
-#if INTHEN
-  payloadCount++;
-  cntr++;
-  output += "<a onclick=\"setpayload('goldhen.bin','" + String(INTHEN_NAME) + "','" + String(USB_WAIT) + "')\"><button class=\"btn\">" + String(INTHEN_NAME) + "</button></a>&nbsp;";
-#endif
+  #if INTHEN
+    payloadCount++;
+    cntr++;
+    output += "<a onclick=\"setpayload('goldhen.bin','" + String(INTHEN_NAME) + "','" + String(USB_WAIT) + "')\"><button class=\"btn\">" + String(INTHEN_NAME) + "</button></a>&nbsp;";
+  #endif
 
   while (dir) {
     File file = dir.openNextFile();
@@ -315,10 +308,10 @@ void handlePayloads(AsyncWebServerRequest *request) {
     esp_task_wdt_reset();
   }
 
-#if FANMOD
-  payloadCount++;
-  output += "<br><p><a onclick='setfantemp()'><button class='btn'>Set Fan Threshold</button></a><select id='temp' class='slct'></select></p><script>function setfantemp(){var e = document.getElementById('temp');var temp = e.value;var xhr = new XMLHttpRequest();xhr.open('POST', 'setftemp', true);xhr.onload = function(e) {if (this.status == 200) {sessionStorage.setItem('payload', 'fant.bin'); sessionStorage.setItem('title', 'Fan Temp ' + temp + ' &deg;C'); localStorage.setItem('temp', temp); sessionStorage.setItem('waittime', '10000');  window.open('loader.html', '_self');}};xhr.send('temp=' + temp);}var stmp = localStorage.getItem('temp');if (!stmp){stmp = 70;}for(var i=55; i<=85; i=i+5){var s = document.getElementById('temp');var o = document.createElement('option');s.options.add(o);o.text = i + String.fromCharCode(32,176,67);o.value = i;if (i == stmp){o.selected = true;}}</script>";
-#endif
+  #if FANMOD
+    payloadCount++;
+    output += "<br><p><a onclick='setfantemp()'><button class='btn'>Set Fan Threshold</button></a><select id='temp' class='slct'></select></p><script>function setfantemp(){var e = document.getElementById('temp');var temp = e.value;var xhr = new XMLHttpRequest();xhr.open('POST', 'setftemp', true);xhr.onload = function(e) {if (this.status == 200) {sessionStorage.setItem('payload', 'fant.bin'); sessionStorage.setItem('title', 'Fan Temp ' + temp + ' &deg;C'); localStorage.setItem('temp', temp); sessionStorage.setItem('waittime', '10000');  window.open('loader.html', '_self');}};xhr.send('temp=' + temp);}var stmp = localStorage.getItem('temp');if (!stmp){stmp = 70;}for(var i=55; i<=85; i=i+5){var s = document.getElementById('temp');var o = document.createElement('option');s.options.add(o);o.text = i + String.fromCharCode(32,176,67);o.value = i;if (i == stmp){o.selected = true;}}</script>";
+  #endif
 
   if (payloadCount == 0) {
     output += "<msg>No .bin payloads found<br>You need to upload the payloads to the ESP32 board.<br>in the arduino ide select <b>Tools</b> &gt; <b>ESP32 Sketch Data Upload</b><br>or<br>Using a pc/laptop connect to <b>" + AP_SSID + "</b> and navigate to <a href=\"/admin.html\"><u>http://" + WIFI_HOSTNAME + "/admin.html</u></a> and upload the .bin payloads using the <b>File Uploader</b></msg></center></body></html>";
@@ -353,7 +346,6 @@ void handleConfig(AsyncWebServerRequest *request) {
 }
 
 
-
 void handleReboot(AsyncWebServerRequest *request) {
   //HWSerial.print("Rebooting ESP");
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", rebooting_gz, sizeof(rebooting_gz));
@@ -362,7 +354,6 @@ void handleReboot(AsyncWebServerRequest *request) {
   delay(1000);
   ESP.restart();
 }
-
 
 
 void handleConfigHtml(AsyncWebServerRequest *request) {
@@ -446,11 +437,11 @@ void handleCacheManifest(AsyncWebServerRequest *request) {
   if (!instr(output, "style.css\r\n")) {
     output += "style.css\r\n";
   }
-#if INTHEN
-  if (!instr(output, "goldhen.bin\r\n")) {
-    output += "goldhen.bin\r\n";
-  }
-#endif
+  #if INTHEN
+    if (!instr(output, "goldhen.bin\r\n")) {
+      output += "goldhen.bin\r\n";
+    }
+  #endif
   request->send(200, "text/cache-manifest", output);
 }
 
@@ -466,34 +457,34 @@ void handleInfo(AsyncWebServerRequest *request) {
   output += "SDK version: " + String(ESP.getSdkVersion()) + "<br><hr>";
   output += "###### Board ######<br><br>";
   output += "MCU: " + mcuType + "<br>";
-#if defined(USB_PRODUCT)
-  output += "Board: " + String(USB_PRODUCT) + "<br>";
-#endif
-  output += "Chip Id: " + String(ESP.getChipModel()) + "<br>";
-  output += "CPU frequency: " + String(ESP.getCpuFreqMHz()) + "MHz<br>";
-  output += "Cores: " + String(ESP.getChipCores()) + "<br><hr>";
-  output += "###### Flash chip information ######<br><br>";
-  output += "Flash chip Id: " + String(ESP.getFlashChipMode()) + "<br>";
-  output += "Estimated Flash size: " + formatBytes(ESP.getFlashChipSize()) + "<br>";
-  output += "Flash frequency: " + String(flashFreq) + " MHz<br>";
-  output += "Flash write mode: " + String((ideMode == FM_QIO ? "QIO" : ideMode == FM_QOUT ? "QOUT"
-                                                                     : ideMode == FM_DIO  ? "DIO"
-                                                                     : ideMode == FM_DOUT ? "DOUT"
-                                                                                          : "UNKNOWN"))
-            + "<br><hr>";
-  output += "###### Storage information ######<br><br>";
-  output += "Filesystem: SPIFFS<br>";
-  output += "Total Size: " + formatBytes(FILESYS.totalBytes()) + "<br>";
-  output += "Used Space: " + formatBytes(FILESYS.usedBytes()) + "<br>";
-  output += "Free Space: " + formatBytes(FILESYS.totalBytes() - FILESYS.usedBytes()) + "<br><hr>";
-#if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
-  if (ESP.getPsramSize() > 0) {
-    output += "###### PSRam information ######<br><br>";
-    output += "Psram Size: " + formatBytes(ESP.getPsramSize()) + "<br>";
-    output += "Free psram: " + formatBytes(ESP.getFreePsram()) + "<br>";
-    output += "Max alloc psram: " + formatBytes(ESP.getMaxAllocPsram()) + "<br><hr>";
-  }
-#endif
+  #if defined(USB_PRODUCT)
+    output += "Board: " + String(USB_PRODUCT) + "<br>";
+  #endif
+    output += "Chip Id: " + String(ESP.getChipModel()) + "<br>";
+    output += "CPU frequency: " + String(ESP.getCpuFreqMHz()) + "MHz<br>";
+    output += "Cores: " + String(ESP.getChipCores()) + "<br><hr>";
+    output += "###### Flash chip information ######<br><br>";
+    output += "Flash chip Id: " + String(ESP.getFlashChipMode()) + "<br>";
+    output += "Estimated Flash size: " + formatBytes(ESP.getFlashChipSize()) + "<br>";
+    output += "Flash frequency: " + String(flashFreq) + " MHz<br>";
+    output += "Flash write mode: " + String((ideMode == FM_QIO ? "QIO" : ideMode == FM_QOUT ? "QOUT"
+                                                                      : ideMode == FM_DIO  ? "DIO"
+                                                                      : ideMode == FM_DOUT ? "DOUT"
+                                                                                            : "UNKNOWN"))
+              + "<br><hr>";
+    output += "###### Storage information ######<br><br>";
+    output += "Filesystem: SPIFFS<br>";
+    output += "Total Size: " + formatBytes(FILESYS.totalBytes()) + "<br>";
+    output += "Used Space: " + formatBytes(FILESYS.usedBytes()) + "<br>";
+    output += "Free Space: " + formatBytes(FILESYS.totalBytes() - FILESYS.usedBytes()) + "<br><hr>";
+  #if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
+    if (ESP.getPsramSize() > 0) {
+      output += "###### PSRam information ######<br><br>";
+      output += "Psram Size: " + formatBytes(ESP.getPsramSize()) + "<br>";
+      output += "Free psram: " + formatBytes(ESP.getFreePsram()) + "<br>";
+      output += "Max alloc psram: " + formatBytes(ESP.getMaxAllocPsram()) + "<br><hr>";
+    }
+  #endif
   output += "###### Ram information ######<br><br>";
   output += "Ram size: " + formatBytes(ESP.getHeapSize()) + "<br>";
   output += "Free ram: " + formatBytes(ESP.getFreeHeap()) + "<br>";
@@ -530,17 +521,17 @@ void writeNVS() {
 }
 
 #if USELED
-Ticker led_ticker; // control when to stop blinking
-Ticker led_blinker; // control blinking pattern
+  Ticker led_ticker; // control when to stop blinking
+  Ticker led_blinker; // control blinking pattern
 
-void stopBlink() {
-  led_ticker.detach();
-  led_blinker.detach();
-  digitalWrite(LED_BUILTIN, LOW);
-}
-void blink() {
-  digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
-}
+  void stopBlink() {
+    led_ticker.detach();
+    led_blinker.detach();
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+  void blink() {
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+  }
 #endif
 
 /* use button 0 to start CDC */
