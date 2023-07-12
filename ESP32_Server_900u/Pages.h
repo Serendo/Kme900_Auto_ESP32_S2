@@ -1,4 +1,4 @@
-#if USBCONTROL | defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(CONFIG_IDF_TARGET_ESP32S2) | defined(CONFIG_IDF_TARGET_ESP32S3)
 static const uint8_t index_gz[] PROGMEM = {
   31, 139, 8, 8, 75, 41, 20, 98, 0, 11, 105, 110, 100, 101, 120, 46, 104, 116, 109, 108, 0, 53, 80, 49, 110, 3, 33, 16, 236, 35, 229, 15,
   27, 164, 116, 177, 239, 156, 180, 112, 77, 226, 58, 150, 156, 38, 37, 134, 181, 89, 101, 15, 44, 88, 157, 117, 191, 15, 199, 217, 13, 163, 153, 133,
@@ -214,7 +214,7 @@ static const uint8_t autohen_gz[] PROGMEM = {
 };
 #endif
 
-#if !USBCONTROL && defined(CONFIG_IDF_TARGET_ESP32)
+#if defined(CONFIG_IDF_TARGET_ESP32)
 static const uint8_t style_gz[] PROGMEM = {
   31, 139, 8, 8, 109, 32, 20, 98, 0, 11, 115, 116, 121, 108, 101, 46, 99, 115, 115, 0, 173, 87, 89, 111, 227, 54, 16, 126, 55, 224, 255, 64,
   172, 17, 32, 6, 44, 67, 242, 213, 196, 70, 129, 182, 216, 253, 3, 125, 45, 250, 64, 153, 180, 76, 132, 18, 5, 146, 74, 236, 13, 242, 223, 59,
