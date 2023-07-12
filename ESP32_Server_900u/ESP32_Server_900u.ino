@@ -550,7 +550,7 @@ void ARDUINO_ISR_ATTR start_cdc() {
     USB.begin();
     #if USELED
       led_ticker.attach(2, stopBlink);
-      led_blinker.attach_ms(200, blink);
+      led_blinker.attach_ms(300, blink);
     #endif
     detachInterrupt(digitalPinToInterrupt(0));
   }
@@ -626,8 +626,6 @@ void setup() {
   } else {
     //HWSerial.println("Failed to load nvs");
   }
-
-
   if (startAP) {
     //HWSerial.println("SSID: " + AP_SSID);
     //HWSerial.println("Password: " + AP_PASS);
@@ -645,7 +643,6 @@ void setup() {
     //HWSerial.println("DNS server started");
     //HWSerial.println("DNS Server IP: " + Server_IP.toString());
   }
-
   if (connectWifi && WIFI_SSID.length() > 0 && WIFI_PASS.length() > 0) {
     WiFi.setAutoConnect(true);
     WiFi.setAutoReconnect(true);
@@ -674,12 +671,9 @@ void setup() {
       }
     }
   }
-
-
   server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Microsoft Connect Test");
   });
-
   server.on("/cache.manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
     handleCacheManifest(request);
   });
@@ -778,27 +772,27 @@ void setup() {
     request->send(response);
   });
 
-#if FANMOD
-  server.on("/setftemp", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("temp", true)) {
-      ftemp = request->getParam("temp", true)->value().toInt();
-      request->send(200, "text/plain", "ok");
-    } else {
-      request->send(404);
-    }
-  });
+  #if FANMOD
+    server.on("/setftemp", HTTP_POST, [](AsyncWebServerRequest *request) {
+      if (request->hasParam("temp", true)) {
+        ftemp = request->getParam("temp", true)->value().toInt();
+        request->send(200, "text/plain", "ok");
+      } else {
+        request->send(404);
+      }
+    });
 
-  server.on("/fant.bin", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (ftemp < 55 || ftemp > 85) { ftemp = 70; }
-    uint8_t *fant = (uint8_t *)malloc(sizeof(uint8_t) * sizeof(fan));
-    memcpy_P(fant, fan, sizeof(fan));
-    fant[250] = ftemp;
-    fant[368] = ftemp;
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", fant, sizeof(fan));
-    request->send(response);
-    free(fant);
-  });
-#endif
+    server.on("/fant.bin", HTTP_GET, [](AsyncWebServerRequest *request) {
+      if (ftemp < 55 || ftemp > 85) { ftemp = 70; }
+      uint8_t *fant = (uint8_t *)malloc(sizeof(uint8_t) * sizeof(fan));
+      memcpy_P(fant, fan, sizeof(fan));
+      fant[250] = ftemp;
+      fant[368] = ftemp;
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", fant, sizeof(fan));
+      request->send(response);
+      free(fant);
+    });
+  #endif
 
   server.serveStatic("/", FILESYS, "/").setDefaultFile("index.html");
 
@@ -827,13 +821,13 @@ void setup() {
       return;
     }
     if (path.endsWith("payloads.html")) {
-#if AUTOHEN
-      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", autohen_gz, sizeof(autohen_gz));
-      response->addHeader("Content-Encoding", "gzip");
-      request->send(response);
-#else
-      handlePayloads(request);
-#endif
+  #if AUTOHEN
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", autohen_gz, sizeof(autohen_gz));
+        response->addHeader("Content-Encoding", "gzip");
+        request->send(response);
+  #else
+        handlePayloads(request);
+  #endif
       return;
     }
     if (path.endsWith("loader.html")) {
@@ -843,14 +837,14 @@ void setup() {
       return;
     }
 
-#if INTHEN
-    if (path.endsWith("goldhen.bin")) {
-      AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", goldhen_gz, sizeof(goldhen_gz));
-      response->addHeader("Content-Encoding", "gzip");
-      request->send(response);
-      return;
-    }
-#endif
+  #if INTHEN
+      if (path.endsWith("goldhen.bin")) {
+        AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", goldhen_gz, sizeof(goldhen_gz));
+        response->addHeader("Content-Encoding", "gzip");
+        request->send(response);
+        return;
+      }
+  #endif
 
     request->send(404);
   });
@@ -872,9 +866,9 @@ static int32_t onRead(uint32_t lba, uint32_t offset, void *buffer, uint32_t bufs
 }
 
 void enableUSB() {
-#if USELED
-  digitalWrite(LED_BUILTIN, HIGH);
-#endif
+  #if USELED
+    digitalWrite(LED_BUILTIN, HIGH);
+  #endif
   dev.vendorID("PS4");
   dev.productID("ESP32 Server");
   dev.productRevision("1.0");
@@ -887,9 +881,9 @@ void enableUSB() {
 }
 
 void disableUSB() {
-#if USELED
-  digitalWrite(LED_BUILTIN, LOW);
-#endif
+  #if USELED
+    digitalWrite(LED_BUILTIN, LOW);
+  #endif
   enTime = 0;
   hasEnabled = false;
   dev.end();
