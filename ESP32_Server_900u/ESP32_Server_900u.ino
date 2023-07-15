@@ -16,7 +16,7 @@
                      // with this enabled you do not upload goldhen to the board, set this to false if you wish to upload goldhen.
 
 // enable autohen [ true / false ]
-#define AUTOHEN false  // this will load goldhen instead of the normal index/payload selection page, use this if you only want hen and no other payloads. \
+//#define AUTOHEN false  // this will load goldhen instead of the normal index/payload selection page, use this if you only want hen and no other payloads. \
                        // you can update goldhen by uploading the goldhen payload to the board storage with the filename "goldhen.bin".
 
 // enable fan threshold [ true / false ]
@@ -56,6 +56,7 @@ String firmwareVer = "1.00";
 boolean espSleep = true;
 int TIME2SLEEP = 30;  // minutes
 
+boolean autoHen = false;
 
 //-----------------------------------------------------//
 
@@ -215,7 +216,7 @@ void handleDelete(AsyncWebServerRequest *request) {
 
 void handleFileMan(AsyncWebServerRequest *request) {
   File dir = FILESYS.open("/");
-  String output = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>File Manager</title><link rel=\"stylesheet\" href=\"style.css\"><style>body{overflow-y:auto;} th{border: 1px solid #dddddd; background-color:gray;padding: 8px;}</style><script>function statusDel(fname) {var answer = confirm(\"Are you sure you want to delete \" + fname + \" ?\");if (answer) {return true;} else { return false; }} </script></head><body><br><table id=filetable></table><script>var filelist = [";
+  String output = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>文件管理器</title><link rel=\"stylesheet\" href=\"style.css\"><style>body{overflow-y:auto;} th{border: 1px solid #dddddd; background-color:gray;padding: 8px;}</style><script>function statusDel(fname) {var answer = confirm(\"Are you sure you want to delete \" + fname + \" ?\");if (answer) {return true;} else { return false; }} </script></head><body><br><table id=filetable></table><script>var filelist = [";
   int fileCount = 0;
   while (dir) {
     File file = dir.openNextFile();
@@ -336,7 +337,8 @@ void handleConfig(AsyncWebServerRequest *request) {
     NVS.setString("USBWAIT", request->getParam("usbwait", true)->value());
     NVS.setString("ESPSLEEP", request->hasParam("espsleep", true) ? "true" : "false");
     NVS.setString("SLEEPTIME", request->getParam("sleeptime", true)->value());
-    String htmStr = "<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"8; url=/info.html\"><style type=\"text/css\">#loader {z-index: 1;width: 50px;height: 50px;margin: 0 0 0 0;border: 6px solid #f3f3f3;border-radius: 50%;border-top: 6px solid #3498db;width: 50px;height: 50px;-webkit-animation: spin 2s linear infinite;animation: spin 2s linear infinite; } @-webkit-keyframes spin {0%{-webkit-transform: rotate(0deg);}100%{-webkit-transform: rotate(360deg);}}@keyframes spin{0%{ transform: rotate(0deg);}100%{transform: rotate(360deg);}}body {background-color: #1451AE; color: #ffffff; font-size: 20px; font-weight: bold; margin: 0 0 0 0.0; padding: 0.4em 0.4em 0.4em 0.6em;} #msgfmt {font-size: 16px; font-weight: normal;}#status {font-size: 16px; font-weight: normal;}</style></head><center><br><br><br><br><br><p id=\"status\"><div id='loader'></div><br>Config saved<br>Rebooting</p></center></html>";
+    NVS.setString("AUTOHEN", request->hasParam("autohen", true) ? "true" : "false");
+    String htmStr = "<!DOCTYPE html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"/><meta http-equiv=\"refresh\" content=\"8; url=/info.html\"><style type=\"text/css\">#loader {z-index: 1;width: 50px;height: 50px;margin: 0 0 0 0;border: 6px solid #f3f3f3;border-radius: 50%;border-top: 6px solid #3498db;width: 50px;height: 50px;-webkit-animation: spin 2s linear infinite;animation: spin 2s linear infinite; } @-webkit-keyframes spin {0%{-webkit-transform: rotate(0deg);}100%{-webkit-transform: rotate(360deg);}}@keyframes spin{0%{ transform: rotate(0deg);}100%{transform: rotate(360deg);}}body {background-color: #1451AE; color: #ffffff; font-size: 20px; font-weight: bold; margin: 0 0 0 0.0; padding: 0.4em 0.4em 0.4em 0.6em;} #msgfmt {font-size: 16px; font-weight: normal;}#status {font-size: 16px; font-weight: normal;}</style></head><center><br><br><br><br><br><p id=\"status\"><div id='loader'></div><br>配置已保存<br>正在重启</p></center></html>";
     request->send(200, "text/html", htmStr);
     delay(1000);
     ESP.restart();
@@ -360,11 +362,13 @@ void handleConfigHtml(AsyncWebServerRequest *request) {
   String tmpUa = "";
   String tmpCw = "";
   String tmpSlp = "";
+  String tmpAh = "";
   if (startAP) { tmpUa = "checked"; }
   if (connectWifi) { tmpCw = "checked"; }
   if (espSleep) { tmpSlp = "checked"; }
+  if (autoHen) { tmpAh = "checked"; }
 
-  String htmStr = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Config Editor</title><style type=\"text/css\">body {background-color: #1451AE; color: #ffffff; font-size: 14px;font-weight: bold;margin: 0 0 0 0.0;padding: 0.4em 0.4em 0.4em 0.6em;}input[type=\"submit\"]:hover {background: #ffffff;color: green;}input[type=\"submit\"]:active{outline-color: green;color: green;background: #ffffff; }table {font-family: arial, sans-serif;border-collapse: collapse;}td {border: 1px solid #dddddd;text-align: left;padding: 8px;}th {border: 1px solid #dddddd; background-color:gray;text-align: center;padding: 8px;}</style></head><body><form action=\"/config.html\" method=\"post\"><center><table><tr><th colspan=\"2\"><center>Access Point</center></th></tr><tr><td>AP SSID:</td><td><input name=\"ap_ssid\" value=\"" + AP_SSID + "\"></td></tr><tr><td>AP PASSWORD:</td><td><input name=\"ap_pass\" value=\"********\"></td></tr><tr><td>AP IP:</td><td><input name=\"web_ip\" value=\"" + Server_IP.toString() + "\"></td></tr><tr><td>SUBNET MASK:</td><td><input name=\"subnet\" value=\"" + Subnet_Mask.toString() + "\"></td></tr><tr><td>START AP:</td><td><input type=\"checkbox\" name=\"useap\" " + tmpUa + "></td></tr><tr><th colspan=\"2\"><center>Web Server</center></th></tr><tr><td>WEBSERVER PORT:</td><td><input name=\"web_port\" value=\"" + String(WEB_PORT) + "\"></td></tr><tr><th colspan=\"2\"><center>Wifi Connection</center></th></tr><tr><td>WIFI SSID:</td><td><input name=\"wifi_ssid\" value=\"" + WIFI_SSID + "\"></td></tr><tr><td>WIFI PASSWORD:</td><td><input name=\"wifi_pass\" value=\"********\"></td></tr><tr><td>WIFI HOSTNAME:</td><td><input name=\"wifi_host\" value=\"" + WIFI_HOSTNAME + "\"></td></tr><tr><td>CONNECT WIFI:</td><td><input type=\"checkbox\" name=\"usewifi\" " + tmpCw + "></td></tr><tr><th colspan=\"2\"><center>Auto USB Wait</center></th></tr><tr><td>WAIT TIME(ms):</td><td><input name=\"usbwait\" value=\"" + USB_WAIT + "\"></td></tr><tr><th colspan=\"2\"><center>ESP Sleep Mode</center></th></tr><tr><td>ENABLE SLEEP:</td><td><input type=\"checkbox\" name=\"espsleep\" " + tmpSlp + "></td></tr><tr><td>TIME TO SLEEP(minutes):</td><td><input name=\"sleeptime\" value=\"" + TIME2SLEEP + "\"></td></tr></table><br><input id=\"savecfg\" type=\"submit\" value=\"Save Config\"></center></form></body></html>";
+  String htmStr = "<!DOCTYPE html><html><head><meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Config Editor</title><style type=\"text/css\">body {background-color: #1451AE; color: #ffffff; font-size: 14px;font-weight: bold;margin: 0 0 0 0.0;padding: 0.4em 0.4em 0.4em 0.6em;}input[type=\"submit\"]:hover {background: #ffffff;color: green;}input[type=\"submit\"]:active{outline-color: green;color: green;background: #ffffff; }table {font-family: arial, sans-serif;border-collapse: collapse;}td {border: 1px solid #dddddd;text-align: left;padding: 8px;}th {border: 1px solid #dddddd; background-color:gray;text-align: center;padding: 8px;}</style></head><body><form action=\"/config.html\" method=\"post\"><center><table><tr><th colspan=\"2\"><center>连接热点</center></th></tr><tr><td>热点SSID:</td><td><input name=\"ap_ssid\" value=\"" + AP_SSID + "\"></td></tr><tr><td>热点密码:</td><td><input name=\"ap_pass\" value=\"********\"></td></tr><tr><td>热点IP:</td><td><input name=\"web_ip\" value=\"" + Server_IP.toString() + "\"></td></tr><tr><td>子网掩码:</td><td><input name=\"subnet\" value=\"" + Subnet_Mask.toString() + "\"></td></tr><tr><td>开启热点:</td><td><input type=\"checkbox\" name=\"useap\" " + tmpUa + "></td></tr><tr><th colspan=\"2\"><center>Web服务器</center></th></tr><tr><td>服务器端口:</td><td><input name=\"web_port\" value=\"" + String(WEB_PORT) + "\"></td></tr><tr><th colspan=\"2\"><center>连接WIFI</center></th></tr><tr><td>WIFI SSID:</td><td><input name=\"wifi_ssid\" value=\"" + WIFI_SSID + "\"></td></tr><tr><td>WIFI密码:</td><td><input name=\"wifi_pass\" value=\"********\"></td></tr><tr><td>主机名:</td><td><input name=\"wifi_host\" value=\"" + WIFI_HOSTNAME + "\"></td></tr><tr><td>连接WIFI:</td><td><input type=\"checkbox\" name=\"usewifi\" " + tmpCw + "></td></tr><tr><th colspan=\"2\"><center>自动USB</center></th></tr><tr><td>等待时长(ms):</td><td><input name=\"usbwait\" value=\"" + USB_WAIT + "\"></td></tr><tr><th colspan=\"2\"><center>自动加载HEN</center></th></tr><tr><td>开启自动HEN(自动注入goldhen.bin):</td><td><input type=\"checkbox\" name=\"autohen\" " + tmpAh + "></td></tr><tr><th colspan=\"2\"><center>ESP睡眠功能</center></th></tr><tr><td>开启睡眠:</td><td><input  type=\"checkbox\" name=\"espsleep\" " + tmpSlp + "></td></tr><tr><td>睡眠定时(minutes):</td><td><input name=\"sleeptime\" value=\"" + TIME2SLEEP + "\"></td></tr></table><br><input id=\"savecfg\" type=\"submit\" value=\"保存配置\"></center></form></body></html>";
   request->send(200, "text/html", htmStr);
 }
 
@@ -502,9 +506,11 @@ void writeNVS() {
   String tmpua = "false";
   String tmpcw = "false";
   String tmpslp = "false";
+  String tmpah = "false";
   if (startAP) { tmpua = "true"; }
   if (connectWifi) { tmpcw = "true"; }
   if (espSleep) { tmpslp = "true"; }
+  if (autoHen) { tmpah = "true"; }
   NVS.setString("AP_SSID", AP_SSID);
   NVS.setString("AP_PASS", AP_PASS);
   NVS.setString("WEBSERVER_IP", Server_IP.toString());
@@ -518,6 +524,7 @@ void writeNVS() {
   NVS.setString("USBWAIT", String(USB_WAIT));
   NVS.setString("ESPSLEEP", tmpslp);
   NVS.setString("SLEEPTIME", String(TIME2SLEEP));
+  NVS.setString("AUTOHEN", tmpah);
 }
 
 #if USELED
@@ -533,11 +540,12 @@ void writeNVS() {
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
   }
 #endif
-
+bool cdc_started;
 /* use button 0 to start CDC */
 void ARDUINO_ISR_ATTR start_cdc() {
   if (digitalRead(0) == LOW) {
     USBSerial.begin();
+    cdc_started = true;
     USB.begin();
     #if USELED
       led_ticker.attach(2, stopBlink);
@@ -551,6 +559,7 @@ void setup() {
   #if USELED
     pinMode(LED_BUILTIN, OUTPUT);
   #endif
+  cdc_started = false;
   pinMode(0, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(0), start_cdc, FALLING);
   //HWSerial.begin(115200);
@@ -599,6 +608,14 @@ void setup() {
       }
       if (NVS.getString("USBWAIT") != "") {
         USB_WAIT = NVS.getString("USBWAIT").toInt();
+      }
+      if (NVS.getString("AUTOHEN") != "") {
+        String strah = NVS.getString("AUTOHEN");
+        if (strah.equals("true")) {
+          autoHen = true;
+        } else {
+          autoHen = false;
+        }
       }
       if (NVS.getString("ESPSLEEP") != "") {
         String strsl = NVS.getString("ESPSLEEP");
@@ -665,6 +682,7 @@ void setup() {
   server.on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Microsoft Connect Test");
   });
+
   server.on("/cache.manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
     handleCacheManifest(request);
   });
@@ -812,13 +830,13 @@ void setup() {
       return;
     }
     if (path.endsWith("payloads.html")) {
-  #if AUTOHEN
+      if(autoHen) {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", autohen_gz, sizeof(autohen_gz));
         response->addHeader("Content-Encoding", "gzip");
         request->send(response);
-  #else
+      } else {
         handlePayloads(request);
-  #endif
+      }
       return;
     }
     if (path.endsWith("loader.html")) {
@@ -901,7 +919,6 @@ void loop() {
     FILESYS.format();
     FILESYS.begin(true);
     delay(1000);
-    writeNVS();
   }
   // dnsServer.processNextRequest();
 }
