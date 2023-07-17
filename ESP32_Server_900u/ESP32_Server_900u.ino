@@ -15,10 +15,6 @@
 #define INTHEN true  // goldhen is placed in the app partition to free up space on the storage for other payloads. \
                      // with this enabled you do not upload goldhen to the board, set this to false if you wish to upload goldhen.
 
-// enable autohen [ true / false ]
-//#define AUTOHEN false  // this will load goldhen instead of the normal index/payload selection page, use this if you only want hen and no other payloads. \
-                       // you can update goldhen by uploading the goldhen payload to the board storage with the filename "goldhen.bin".
-
 // enable fan threshold [ true / false ]
 #define FANMOD true  // this will include a function to set the consoles fan ramp up temperature in °C \
                      // this will not work if the board is a esp32 and the usb control is disabled.
@@ -208,7 +204,7 @@ void handleDelete(AsyncWebServerRequest *request) {
     request->redirect("/fileman.html");
     return;
   }
-  if (FILESYS.exists("/" + path) && path != "/" && !path.equals("config.ini")) {
+  if (FILESYS.exists("/" + path) && path != "/" ) {
     FILESYS.remove("/" + path);
   }
   request->redirect("/fileman.html");
@@ -225,7 +221,7 @@ void handleFileMan(AsyncWebServerRequest *request) {
       break;
     }
     String fname = String(file.name());
-    if (fname.length() > 0 && !fname.equals("config.ini") && !file.isDirectory()) {
+    if (fname.length() > 0 && !file.isDirectory()) {
       fileCount++;
       fname.replace("|", "%7C");
       fname.replace("\"", "%22");
@@ -253,7 +249,7 @@ void handleDlFiles(AsyncWebServerRequest *request) {
       break;
     }
     String fname = String(file.name());
-    if (fname.length() > 0 && !fname.equals("config.ini") && !file.isDirectory()) {
+    if (fname.length() > 0 && !file.isDirectory()) {
       fileCount++;
       fname.replace("\"", "%22");
       output += "\"" + fname + "\",";
@@ -383,7 +379,6 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
     if (!filename.startsWith("/")) {
       filename = "/" + filename;
     }
-    if (filename.equals("/config.ini")) { return; }
     //HWSerial.printf("Upload Start: %s\n", filename.c_str());
     upFile = FILESYS.open(filename, "w");
   }
@@ -418,7 +413,7 @@ void handleCacheManifest(AsyncWebServerRequest *request) {
       break;
     }
     String fname = String(file.name());
-    if (fname.length() > 0 && !fname.equals("config.ini") && !file.isDirectory()) {
+    if (fname.length() > 0 && !file.isDirectory()) {
       if (fname.endsWith(".gz")) {
         fname = fname.substring(0, fname.length() - 3);
       }
@@ -687,10 +682,6 @@ void setup() {
     handleCacheManifest(request);
   });
 
-  server.on("/config.ini", HTTP_ANY, [](AsyncWebServerRequest *request) {
-    request->send(404);
-  });
-
   server.on("/upload.html", HTTP_GET, [](AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", upload_gz, sizeof(upload_gz));
     response->addHeader("Content-Encoding", "gzip");
@@ -845,16 +836,14 @@ void setup() {
       request->send(response);
       return;
     }
-
-  #if INTHEN
+    #if INTHEN
       if (path.endsWith("goldhen.bin")) {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "application/octet-stream", goldhen_gz, sizeof(goldhen_gz));
         response->addHeader("Content-Encoding", "gzip");
         request->send(response);
         return;
       }
-  #endif
-
+    #endif
     request->send(404);
   });
 
